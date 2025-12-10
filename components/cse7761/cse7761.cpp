@@ -23,12 +23,16 @@ namespace esphome {
 
     static const int CSE7761_UREF = 42563;  // RmsUc
     static const int CSE7761_IREF = 52241;  // RmsIAC
-    static const int CSE7761_PREF = 44513;  // PowerPAC
+    //static const int CSE7761_PREF = 44513;  // PowerPAC
+    static const int CSE7761_PREF = 40158;  // PowerPAC après étallonage manuel avec autre appareil de mesure
 
     static const uint8_t CSE7761_REG_SYSCON = 0x00;     // (2) System Control Register (0x0A04)
     static const uint8_t CSE7761_REG_EMUCON = 0x01;     // (2) Metering control register (0x0000)
     static const uint8_t CSE7761_REG_EMUCON2 = 0x13;    // (2) Metering control register 2 (0x0001)
     static const uint8_t CSE7761_REG_PULSE1SEL = 0x1D;  // (2) Pin function output select register (0x3210)
+
+    static const uint8_t CSE7761_REG_PSTARTPA = 0x03;  // Seuil démarrage canal A
+    static const uint8_t CSE7761_REG_PSTARTPB = 0x04;  // Seuil démarrage canal B
 
     // offsets registers
     static const uint8_t CSE7761_REG_POWER_PA_OFFSET = 0x0A; // (2) PowerPAOS (Active Power Offset)
@@ -315,12 +319,25 @@ namespace esphome {
         this->data_.coefficient[RMS_UC] = CSE7761_UREF;
         this->data_.coefficient[POWER_PAC] = CSE7761_PREF;
       }
+      // forçage gain calculé pour la puissance
+      this->gain_factor_ = 2;
+      this->data_.coefficient[POWER_PAC] = CSE7761_PREF*this->gain_factor_;
+
 
       this->write_(CSE7761_SPECIAL_COMMAND, CSE7761_CMD_ENABLE_WRITE);
 
       uint8_t sys_status = this->read_(CSE7761_REG_SYSSTATUS, 1);
       if (sys_status & 0x10) {  // Write enable to protected registers (WREN)
-        this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);
+
+        if (this->gain_factor_ == 1) { // faibles puissances -> sature à 2200W environ
+          // PGAIA = 100 (16x) et PGAIB = 100 (16x) cannal A sature à 2200W environ
+          this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);
+        }
+        else if (this->gain_factor_ == 2){
+          // Bits 8-6: PGAIB = 011 (8x) - canal B
+          // Bits 2-0: PGAIA = 011 (8x)  - canal A mesure jusqu'à 33kW en théorie
+          this->write_(CSE7761_REG_SYSCON | 0x80, 0xFEC3);
+        }
         // old values: unsigned power, no frequency
         //this->write_(CSE7761_REG_EMUCON | 0x80, 0x1183);
         //this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FC1);
@@ -330,6 +347,14 @@ namespace esphome {
         // signed power + frequency (does not work, tension signal must be too durty)
         //this->write_(CSE7761_REG_EMUCON | 0x80, 0x1D83);
         //this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x8FC1);
+
+        // Correction pour les faibles puissances qui ne sont pas correctement accumulées
+        // Option 1 : Seuil très bas (recommandé pour mesure précise dès 5W)
+        this->write_(CSE7761_REG_PSTARTPA | 0x80, 0x0008);  // ~5-10W
+        // Option 2 : Pas de seuil du tout (si vous voulez mesurer même < 1W)
+        //this->write_(CSE7761_REG_PSTARTPA | 0x80, 0x0000);  // 0W
+        // Option 3 : Garder un petit seuil anti-bruit (compromis)
+        //this->write_(CSE7761_REG_PSTARTPA | 0x80, 0x0010);  // ~15-20W
 
         this->write_(CSE7761_REG_PULSE1SEL | 0x80, 0x3290);
       } else {
@@ -377,19 +402,6 @@ namespace esphome {
       if (this->current_sensor_2_ != nullptr) {
         this->current_sensor_2_->publish_state(this->active_current_B_);
       }
-/* TODO: make a debug function to print bytes in hex or binary
- *      ESP_LOGD(TAG, "Différence des intensités brutes à vide %d", this->data_.current_rms[0]-this->data_.current_rms[1]);
- *       ESP_LOGD(TAG, "Rapport des intensités brutes à vide %f", (float) this->data_.current_rms[0] / (float) this->data_.current_rms[1]);
- *       std::stringstream ss_bin;
- *       uint32_t u32_value = (uint32_t)svalue;
- *       for (int j=3; j>=0; j--){
- *         uint8_t byte_value = uint8_t ((u32_value >> j*8) & 0xFF);
- *         for (int i = 7; i >= 0; --i) {
- *           ss_bin << ((byte_value >> i) & 1);
- *         }
- *         ss_bin << " ";
- *       }
- *       ESP_LOGD(TAG, "Channel 2 I RAW VALUE: %s", ss_bin.str().c_str());*/
 
 //      uvalue = this->read_(CSE7761_REG_UFREQ, 2);
 //      this->data_.frequency = (uvalue >= 0x8000) ? 0 : uvalue;
