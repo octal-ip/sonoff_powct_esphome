@@ -23,8 +23,8 @@ namespace esphome {
 
     static const int CSE7761_UREF = 42563;  // RmsUc
     static const int CSE7761_IREF = 52241;  // RmsIAC
-    //static const int CSE7761_PREF = 44513;  // PowerPAC
-    static const int CSE7761_PREF = 40158;  // PowerPAC après étallonage manuel avec autre appareil de mesure
+    static const int CSE7761_PREF = 44513;  // PowerPAC
+    //static const int CSE7761_PREF = 40158;  // PowerPAC après étallonage manuel avec autre appareil de mesure (gain x8)
 
     static const uint8_t CSE7761_REG_SYSCON = 0x00;     // (2) System Control Register (0x0A04)
     static const uint8_t CSE7761_REG_EMUCON = 0x01;     // (2) Metering control register (0x0000)
@@ -278,15 +278,15 @@ namespace esphome {
     uint32_t CSE7761Component::coefficient_by_unit_(uint32_t unit) {
       switch (unit) {
         case RMS_IAC:
-          return (0x800000 * 100 / this->data_.coefficient[RMS_IAC]) * 10;  // Stay within 32 bits
+          return (0x800000 * 100 / this->data_.coefficient[RMS_IAC]) * 10 / 4.7;  // Stay within 32 bits // *100*10 mA->A // K_1=4.7
         case RMS_IBC:
-          return (0x800000 * 100 / this->data_.coefficient[RMS_IBC]) * 10;  // Stay within 32 bits
+          return (0x800000 * 100 / this->data_.coefficient[RMS_IBC]) * 10 / 4.7;  // Stay within 32 bits // *100*10 mA->A // K_1=4.7
         case RMS_UC:
-          return 0x400000 * 100 / this->data_.coefficient[RMS_UC];
+          return 0x400000 * 100 / this->data_.coefficient[RMS_UC]; // *100 10mV->V // K_2=1
         case POWER_PAC:
-          return 0x80000000 / this->data_.coefficient[POWER_PAC];
+          return 0x80000000 / this->data_.coefficient[POWER_PAC] / 4.7; // K_1=4.7 // K_2=1
         case POWER_PBC:
-          return 0x80000000 / this->data_.coefficient[POWER_PBC];
+          return 0x80000000 / this->data_.coefficient[POWER_PBC] / 4.7; // K_1=4.7 // K_2=1
           // TODO: to verify the folowing formulas are OK with CSE7761 datasheet
         case POWER_SC:
           return 0x80000000 / this->data_.coefficient[POWER_SC];
@@ -319,25 +319,13 @@ namespace esphome {
         this->data_.coefficient[RMS_UC] = CSE7761_UREF;
         this->data_.coefficient[POWER_PAC] = CSE7761_PREF;
       }
-      // forçage gain calculé pour la puissance
-      this->gain_factor_ = 2;
-      this->data_.coefficient[POWER_PAC] = CSE7761_PREF*this->gain_factor_;
-
 
       this->write_(CSE7761_SPECIAL_COMMAND, CSE7761_CMD_ENABLE_WRITE);
 
       uint8_t sys_status = this->read_(CSE7761_REG_SYSSTATUS, 1);
       if (sys_status & 0x10) {  // Write enable to protected registers (WREN)
 
-        if (this->gain_factor_ == 1) { // faibles puissances -> sature à 2200W environ
-          // PGAIA = 100 (16x) et PGAIB = 100 (16x) cannal A sature à 2200W environ
-          this->write_(CSE7761_REG_SYSCON | 0x80, 0xFF04);
-        }
-        else if (this->gain_factor_ == 2){
-          // Bits 8-6: PGAIB = 011 (8x) - canal B
-          // Bits 2-0: PGAIA = 011 (8x)  - canal A mesure jusqu'à 33kW en théorie
-          this->write_(CSE7761_REG_SYSCON | 0x80, 0xFEC3);
-        }
+        this->write_(CSE7761_REG_SYSCON | 0x80, 0xFE00);
         // old values: unsigned power, no frequency
         //this->write_(CSE7761_REG_EMUCON | 0x80, 0x1183);
         //this->write_(CSE7761_REG_EMUCON2 | 0x80, 0x0FC1);
@@ -391,14 +379,14 @@ namespace esphome {
 
       svalue = this->read_(CSE7761_REG_RMSIA, 3);
       this->data_.current_rms[0] = (svalue&0x800000)?svalue|0xFF000000:svalue;
-      this->active_current_A_ = (((float) this->data_.current_rms[0]) / this->coefficient_by_unit_(RMS_IAC))/std::numbers::pi+this->software_current_offset_A_;
+      this->active_current_A_ = (((float) this->data_.current_rms[0]) / this->coefficient_by_unit_(RMS_IAC))+this->software_current_offset_A_;
       if (this->current_sensor_1_ != nullptr) {
         this->current_sensor_1_->publish_state(this->active_current_A_);
       }
 
       svalue = this->read_(CSE7761_REG_RMSIB, 3);
       this->data_.current_rms[1] = (svalue&0x800000)?svalue|0xFF000000:svalue;
-      this->active_current_B_ = (((float) this->data_.current_rms[1]) / this->coefficient_by_unit_(RMS_IBC))/std::numbers::pi+this->software_current_offset_B_;
+      this->active_current_B_ = (((float) this->data_.current_rms[1]) / this->coefficient_by_unit_(RMS_IBC))+this->software_current_offset_B_;
       if (this->current_sensor_2_ != nullptr) {
         this->current_sensor_2_->publish_state(this->active_current_B_);
       }
@@ -413,7 +401,7 @@ namespace esphome {
       uint32_t now = esphome::millis();
       svalue = this->read_(CSE7761_REG_POWERPA, 4);
       this->data_.active_power[0] = (int32_t) svalue;
-      this->active_power_A_ = (((float) this->data_.active_power[0]) / this->coefficient_by_unit_(POWER_PAC))/std::numbers::pi+this->software_power_offset_A_;
+      this->active_power_A_ = (((float) this->data_.active_power[0]) / this->coefficient_by_unit_(POWER_PAC))+this->software_power_offset_A_;
       ESP_LOGD(TAG, "Puissance: %f", this->active_power_A_);
       if (this->power_sensor_1_ != nullptr) {
         this->power_sensor_1_->publish_state(this->active_power_A_);
@@ -450,7 +438,7 @@ namespace esphome {
 
       svalue = this->read_(CSE7761_REG_POWERPB, 4);
       this->data_.active_power[1] = (int32_t) svalue; // mesure du bruit
-      this->active_power_B_ = (((float) this->data_.active_power[1]) / this->coefficient_by_unit_(POWER_PBC))/std::numbers::pi+this->software_power_offset_B_;
+      this->active_power_B_ = (((float) this->data_.active_power[1]) / this->coefficient_by_unit_(POWER_PBC))+this->software_power_offset_B_;
       if (this->power_sensor_2_ != nullptr) {
         this->power_sensor_2_->publish_state(this->active_power_B_);
       }

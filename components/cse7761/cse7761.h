@@ -83,7 +83,6 @@ namespace esphome {
       uint32_t last_save_time_{0};
       double accumulated_energy_received_{0.0f};
       double accumulated_energy_exported_{0.0f};
-      int gain_factor_{1};
 
       void write_(uint8_t reg, uint16_t data);
       bool read_once_(uint8_t reg, uint8_t size, uint32_t *value);
