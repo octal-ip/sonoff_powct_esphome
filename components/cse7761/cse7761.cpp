@@ -431,7 +431,7 @@ namespace esphome {
           }
         }
         ESP_LOGD(TAG, "dt = %f ; P_moy = %f ; dE = %f",time_delta_s, mean_power, delta_E);
-        ESP_LOGD(TAG, "dE_r = %f ; dE_e = %f", this->energy_received_, this->energy_exported_);
+        ESP_LOGD(TAG, "dE_r = %f ; dE_e = %f", this->energy_received_->state, this->energy_exported_->state);
         ESP_LOGD(TAG, "Total E_r = %f ; Total E_e = %f", this->accumulated_energy_received_, this->accumulated_energy_exported_);
       }
 
@@ -502,7 +502,7 @@ namespace esphome {
     //***********************************************************************************************
     void CSE7761Component::read_register_service(std::string register_number_str, int size) {
       // Optionnel : Loguer l'appel
-      ESP_LOGD(TAG, "Service appelé: Lecture du registre %s sur %d octets.", register_number_str, size);
+      ESP_LOGD(TAG, "Service appelé: Lecture du registre %s sur %d octets.", register_number_str.c_str(), size);
 
       uint32_t register_number;
       char *end_ptr;
@@ -537,7 +537,7 @@ namespace esphome {
 
       std::string hex_data = ss_hex.str();
       std::string bin_data = ss_bin.str();
-      ESP_LOGI(TAG, "Contenu du registre 0x%X: %s=%s", register_number, hex_data.c_str(), bin_data.c_str());
+      ESP_LOGI(TAG, "Contenu du registre 0x%lX: %s=%s", register_number, hex_data.c_str(), bin_data.c_str());
       if (debug_sensor_hex_) {
         debug_sensor_hex_->publish_state(hex_data);
       }
@@ -620,7 +620,7 @@ namespace esphome {
     //       functions.
     //***********************************************************************************************
     void CSE7761Component::write_register_service(std::string register_number_str, std::string value_str) {
-      ESP_LOGD(TAG, "Service appelé: Écriture du registre %s avec la valeur %s.", register_number_str, value_str);
+      ESP_LOGD(TAG, "Service appelé: Écriture du registre %s avec la valeur %s.", register_number_str.c_str(), value_str.c_str());
 
       uint8_t register_number;
       uint16_t value;

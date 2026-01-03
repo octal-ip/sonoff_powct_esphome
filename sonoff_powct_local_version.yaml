@@ -6,11 +6,10 @@ esp32:
   board: nodemcu-32s
   framework:
     type: esp-idf
+    version: 5.4.0 # bugs with newest versions in esphome 2025.12.4
 
 preferences:
-  # time between energies saving on flash memory
-  # not less than 1h !!! Or it may cause damages to memory too soon
-  flash_write_interval: 12h
+  flash_write_interval: 1h
 
 logger:
    level: INFO
@@ -47,6 +46,8 @@ wifi:
   ap:
     ssid: ">>>>>>>>PUT HERE YOUR OWN FALLBACK SSID<<<<<<<<<<<"
     password: ">>>>>>>>PUT HERE YOUR OWN PASSWORD<<<<<<<<<<<"
+
+  #use_address: >>>>>PUT HERE THE IP ADDRESS OF YOUR SONOFF<<<<< #usefull if static IP on another network (like iot specific network).
 
 web_server:
   ota: false
@@ -97,12 +98,6 @@ sensor:
       id: a_sensor_1
       accuracy_decimals: 3
       icon: mdi:current-ac
-# current_2 only for debug purpose
-#    current_2:
-#      name: Current B
-#      id: a_sensor_2
-#      accuracy_decimals: 3
-#      icon: mdi:current-ac
     active_power_1:
       name: Power A
       id: w_sensor_1
@@ -114,11 +109,6 @@ sensor:
         - below: 3.0
           then:
             - light.turn_off: switch_led
-# active_power_2 only for debug purpose
-#    active_power_2:
-#      name: Power B
-#      id: w_sensor_2
-#      icon: mdi:flash
     energy_received:
       name: Energy received
       id: E_received
