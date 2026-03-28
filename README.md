@@ -32,6 +32,9 @@ This custom ESPHome component fully utilises the Sonoff POW CT, providing advanc
 
 * **Native Integration**
     * Integration with Home Assistant via the native ESPHome API (No Cloud).
+	
+* **Improved net energy metering**
+    * Energy display shows net energy (received − exported), so export-dominant installations show a negative kWh value.
 
 ## 📚 Documentation & Guides
 | Guide | Description | Link |
@@ -58,6 +61,10 @@ The following key functional improvements were made to the `components/cse7761` 
 | **Current sign/validity handling** | RMS current values with the MSB set are now treated as invalid (substituted with zero) rather than sign-extended to a negative current, matching the CSE7761 datasheet definition of bit 23 as an invalid-data flag for RMS registers. |
 | **Debug service address validation** | `read_register_service()` validated the register address against the 32-bit range (`> 0xFFFFFFFF`), which is always false for an `unsigned long`. The check is corrected to the 8-bit CSE7761 address space (`> 0xFF`). |
 | **Code quality** | All French-language comments and log messages translated to English; log levels standardised (`ESP_LOGI` for measurement values); register constant names updated to be self-documenting; `double` literals used consistently throughout where `double` accumulators are involved. |
+
+
+## 🔧 Known issues
+Power display uses no decimal point for values in the −999 to 999 W range, and switches to kW with a decimal point for magnitudes ≥ 1000 (handles both large positive and large negative values within the 4-character display limit). There is no way to indicate when the display changes from W to kW units.
 
 
 ## Credits

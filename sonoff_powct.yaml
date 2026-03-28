@@ -46,8 +46,6 @@ ota:
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
-  min_auth_mode: WPA3
-  fast_connect: off
 
 web_server:
   ota: false
@@ -124,7 +122,7 @@ sensor:
       accuracy_decimals: 3
       state_class: total_increasing
       filters:
-        - throttle_average: 30s
+        - throttle: 30s
     energy_exported:
       name: Energy exported
       id: E_exported
@@ -132,7 +130,7 @@ sensor:
       accuracy_decimals: 3
       state_class: total_increasing
       filters:
-        - throttle_average: 30s
+        - throttle: 30s
 
   - platform: internal_temperature
     name: ESP32 Internal Temp
@@ -191,11 +189,16 @@ display:
       it.display_kwh(false);
       it.printf(0, "%.1f", id(v_sensor).raw_state);
       it.printf(1, "%.1f", id(a_sensor_1).raw_state);
-    } else {  
+    } else {
       it.display_voltage(false);
       it.display_kwh(true);
-      it.printf(0, "%.1f", id(E_received).raw_state);
-      it.printf(1, "%.1f", id(w_sensor_1).raw_state);
+      { float _er = id(E_received).raw_state;
+        float _ee = id(E_exported).raw_state;
+        float _e = (std::isnan(_er) ? 0.0f : _er) - (std::isnan(_ee) ? 0.0f : _ee);
+        it.printf(0, "%.1f", _e); }
+      { float _w = id(w_sensor_1).raw_state;
+        if (fabsf(_w) >= 1000.0f)  it.printf(1, "%.1f", _w / 1000.0f);  // kW with decimal
+        else                       it.printf(1, "%.0f", _w); }           // W no decimal
     }
 
 output:
