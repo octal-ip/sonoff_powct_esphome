@@ -14,20 +14,23 @@ namespace esphome {
   namespace cse7761 {
 
     struct CSE7761DataStruct {
-      uint16_t angle = 0;
-      uint16_t frequency = 0;
       uint32_t voltage_rms = 0;
       int32_t current_rms[2] = {0};
-      uint32_t energy[2] = {0};
       int32_t active_power[2] = {0};
       uint32_t coefficient[8] = {0};
-      uint8_t energy_update = 0;
       bool ready = false;
     };
 
     struct EnergyDataStruct {
       double received;
       double exported;
+    };
+
+    struct CalibrationDataStruct {
+      double software_current_offset_A;
+      double software_current_offset_B;
+      double software_power_offset_A;
+      double software_power_offset_B;
     };
 
     /// This class implements support for the CSE7761 UART power sensor.
@@ -40,6 +43,9 @@ namespace esphome {
       void set_current_2_sensor(sensor::Sensor *current_sensor_2) { current_sensor_2_ = current_sensor_2; }
       void set_energy_received_sensor(sensor::Sensor *energy_received) { energy_received_ = energy_received; }
       void set_energy_exported_sensor(sensor::Sensor *energy_exported) { energy_exported_ = energy_exported; }
+      void set_ct_turns_b(uint8_t turns) { ct_turns_b_ = turns; }
+      void set_persist_energy(bool persist) { persist_energy_ = persist; }
+      bool is_calibration_enabled() const { return calibration_enabled_; }
       void setup() override;
       void dump_config() override;
       float get_setup_priority() const override;
@@ -64,10 +70,15 @@ namespace esphome {
       sensor::Sensor *energy_exported_{nullptr};
       CSE7761DataStruct data_;
       esphome::ESPPreferenceObject pref_;
+      esphome::ESPPreferenceObject calibration_pref_;
       // calibration
       bool calibration_enabled_{false};
+      bool persist_energy_{false};
       bool ok_energy_{false};
+      uint8_t ct_turns_b_{1};
       uint8_t calibration_count_{0};
+      double sum_current_A_{0};
+      double sum_power_A_{0};
       double sum_current_B_{0};
       double sum_power_B_{0};
       double active_current_A_{0};
@@ -81,8 +92,8 @@ namespace esphome {
       double software_power_offset_B_{0};
       uint32_t last_update_time_{0};
       uint32_t last_save_time_{0};
-      double accumulated_energy_received_{0.0f};
-      double accumulated_energy_exported_{0.0f};
+      double accumulated_energy_received_{0.0};
+      double accumulated_energy_exported_{0.0};
 
       void write_(uint8_t reg, uint16_t data);
       bool read_once_(uint8_t reg, uint8_t size, uint32_t *value);

@@ -31,6 +31,8 @@ CONF_ENERGY_RECEIVED = "energy_received"
 CONF_ENERGY_EXPORTED = "energy_exported"
 CONF_DEBUG_SENSOR_HEX_ID = "debug_sensor_hex_id"
 CONF_DEBUG_SENSOR_BIN_ID = "debug_sensor_bin_id"
+CONF_CT_TURNS_B = "ct_turns_b"
+CONF_PERSIST_ENERGY = "persist_energy"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -78,6 +80,8 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
+            cv.Optional(CONF_CT_TURNS_B, default=1): cv.int_range(min=1, max=5),
+            cv.Optional(CONF_PERSIST_ENERGY, default=False): cv.boolean,
             cv.Optional(CONF_DEBUG_SENSOR_HEX_ID): cv.use_id(text_sensor.TextSensor),
             cv.Optional(CONF_DEBUG_SENSOR_BIN_ID): cv.use_id(text_sensor.TextSensor),
         }
@@ -111,6 +115,8 @@ async def to_code(config):
         conf = config[key]
         sens = await sensor.new_sensor(conf)
         cg.add(getattr(var, f"set_{key}_sensor")(sens))
+    cg.add(var.set_ct_turns_b(config[CONF_CT_TURNS_B]))
+    cg.add(var.set_persist_energy(config[CONF_PERSIST_ENERGY]))
     if debug_sensor_hex_config := config.get(CONF_DEBUG_SENSOR_HEX_ID):
         debug_sensor_hex = await cg.get_variable(debug_sensor_hex_config)
         cg.add(var.set_debug_text_sensor_hex(debug_sensor_hex))

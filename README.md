@@ -1,64 +1,64 @@
-# ⚡ Sonoff POW CT ESPHome: Unleashed!
-
-> **Migrate my Sonoff POW CT energy meter to ESPHome and unlock its advanced energy monitoring features!**
+# ⚡ Enhanced SonOff POW CT ESPHome Component
 
 [![ESPHome](https://img.shields.io/badge/ESPHome-2F7B9D?style=for-the-badge&logo=esphome&logoColor=white)](https://esphome.io/)
 [![Home Assistant](https://img.shields.io/badge/Home%20Assistant-41A8F5?style=for-the-badge&logo=home-assistant&logoColor=white)](https://www.home-assistant.io/)
-[![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-PayPal-blue?style=for-the-badge&logo=paypal)](https://paypal.me/mazkagaz)
-[![Project Status](https://img.shields.io/badge/Status-Active-brightgreen?style=for-the-badge)](https://github.com/votre_profil/votre_repo/commits/main)
 [![License](https://img.shields.io/badge/License-MIT-blue.svg?style=for-the-badge)]() 
 ---
 
 ## ✨ Key Features
 
-This custom ESPHome firmware allows me to fully utilize the Sonoff POW CT, providing essential energy monitoring features, especially for solar installations:
+This custom ESPHome component fully utilises the Sonoff POW CT, providing advanced energy monitoring features, easy calibration and native Home Assistant integration.
 
-* **Advanced Bidirectional Measurement**
-    * Reading of **positive** (consumption) and **negative** (production) current and power values.
-    * Fast updates, with a new value per second.
+* **Bi-directional Power Measurement**
+    * Fast reading of **positive** (consumption) and **negative** (production) current and power values.
 
 * **Separate Energy Meters**
     * Direct reading of accumulated energy, with dedicated energy sensors for **import** (total consumption) and **export** (total production).
-    * Energies are backed up to the flash memory.
+    * Accumulated energy metrics can be backed up to the ESP's flash memory.
 
 * **Advanced Debugging Tools**
     * Built-in functions to directly read and write to the measurement component registers via Home Assistant **Actions**:
         * `my_sonoff_powct_read_register`
         * `my_sonoff_powct_write_register`
 
-* **Precision Calibration**
-    * The ability to perform fine calibration of measurements to ensure **optimal accuracy**.
+* **Easy Calibration**
+    * The ability to perform fine calibration of the POWCT at zero load to ensure **optimal accuracy**.
+
+* **Higher Current and Power Sensitivity**
+    * Multiple conductor turns through the CT are supported. Useful for instalations where 100A current readings are excessive, and higher sensitivity at lower powers is desirable.
+	
+* **Faster display updates and lower network throughput**
+    * The LCD screen is now updated twice a second, and 30 second averages are sent to Home Assistant.
 
 * **Native Integration**
-    * Perfect and local integration with Home Assistant via the native ESPHome API (No Cloud).
-
-## 🚀 Next Steps (Roadmap)
-
-I am actively working on improving this configuration.
-
-* **More configuration flexibility**
-    * Calibration values access.
-    * Switch to choose signed or unsigned measurements.
-    * ... Tell me what would be useful.
-* **Additional Diagnostics**
-    * Addition of extra diagnostic sensors. Tell me what you wish.
+    * Integration with Home Assistant via the native ESPHome API (No Cloud).
 
 ## 📚 Documentation & Guides
-
-To begin the installation and configuration of my device, please consult the detailed guides:
-
 | Guide | Description | Link |
 | :--- | :--- | :--- |
-| **Installation Guide** | Complete procedure for flashing and starting my device. | **[Doc/INSTALL.md](Doc/INSTALL.md)** |
-| **Calibration Guide** | Instructions for performing precise calibration of my measurements. | **[Doc/CALIBRATION.md](Doc/CALIBRATION.md)** |
-| **Register Debug Guide** | A picture is worth a thousand words... | **[Doc/DEBUG.md](Doc/DEBUG.md)** |
-| **Configuration Details** | Detailed explanations of the Sonoff POW CT specific options and the use of advanced **debug functions**. | **[Doc/SONOFF\_POWCT\_CONFIG.md](Doc/SONOFF\_POWCT\_CONFIG.md)** |
-| **Datasheet** | Technical manual for the **CSE7761** energy measurement circuit. | **[Doc/CSE7761UserManual\_1672133056.pdf](Doc/CSE7761UserManual\_1672133056.pdf)** |
-
+| **Installation Guide** | Procedure for flashing ESPHome | **[documents/INSTALL.md](documents/INSTALL.md)** |
+| **Calibration Guide** | Instructions for performing a "zero point" calibration. | **[documents/CALIBRATION.md](documents/CALIBRATION.md)** |
 ***
 
-### 🤝 Contributing
+## 🔧 Key Changes from Original (`mazkagaz/sonoff_powct_esphome`)
+The following key functional improvements were made to the `components/cse7761` driver after forking, addressing reliability, accuracy, and configurability:
 
-Contributions, bug reports, and feature requests are welcome! Feel free to open an *issue* or a *pull request*.
+| Theme | Summary |
+| :--- | :--- |
+| **Chip detection** | Changed from a SYSCON register heuristic (`0x0A04`) to an explicit CHIP\_ID read (`0x776110`). This is a more reliable presence check and logs the actual ID read on failure, making hardware faults easier to diagnose. |
+| **UART communication reliability** | The `read_once_()` function now sends the read command as a raw 2-byte frame (matching the CSE7761 protocol) instead of routing through the write helper that appended an unwanted CRC. A per-byte 20 ms timeout with `yield()` replaces the previous fire-and-forget read, preventing silent data corruption and keeping the watchdog alive. Similarly, `write_()` now always emits a full-length frame with a CRC rather than a variable-length one that omitted the CRC for zero-valued payloads. |
+| **Data coherency** | `get_data_()` now polls the `DUPDIF` flag in the chip's interrupt-flag register before reading any measurements. This ensures all voltage, current, and power registers belong to the same 27.3 Hz update cycle, eliminating the possibility of reading a mix of old and new values. |
+| **Multi-turn CT support** | Added `ct_turns_b` YAML option (integer 1–5, default 1). Current and power readings are divided by this value, allowing the component to be used with multi-turn CT installations. The POWCT uses a 100A split core CT. Sensitivity of lower current and power measurements can be increased by adding multiple turns of the conductor through the CT. This will reduce the maximum measureable current/power reading proportionally (i.e. three turns will yield a maximum current reading of 33.3A, but will increase sensitivity by a factor of 3). This is useful for instalations where 100A maximum readings are excessive. |
+| **Optional energy persistence** | Energy accumulation was always saved to flash in the original. The new `persist_energy` boolean option (default `false`) makes flash writes opt-in, reducing wear on devices where energy totals do not need to survive a reboot. |
+| **Independent per-channel calibration** | The original derived channel A offsets from channel B using two hardcoded scale factors (`10.46×` current, `−8.89×` power). The reworked calibration collects idle readings from both channels simultaneously and applies the mean directly to each channel independently, removing the dependency on those magic numbers and producing more accurate zero-point correction. |
+| **Persistent calibration offsets** | Calibration offsets are now saved to a dedicated flash preference slot (`0x2A3B4C5D`) and restored on every boot, so a calibration run does not need to be repeated after a restart. |
+| **Single-shot calibration** | After collecting `CALIBRATION_MEASUREMENTS` samples, calibration mode is now automatically disabled (`calibration_enabled_ = false`). The original immediately restarted a new cycle, making it impossible to inspect the result before further corrections were applied. |
+| **Coefficient zero-guard** | `chip_init_()` now individually checks every coefficient for zero after the checksum validation, preventing a divide-by-zero in `coefficient_by_unit_()` even for chips that pass the checksum with a partially corrupt coefficient block. All 8 coefficient slots are also populated with defaults (vs. only 3 in the original). |
+| **Channel B start threshold** | The channel B power start threshold (`PSTART_B`) was not written by the original; it is now set to `0x0008` to match channel A, ensuring consistent no-load behaviour on both channels. |
+| **Current sign/validity handling** | RMS current values with the MSB set are now treated as invalid (substituted with zero) rather than sign-extended to a negative current, matching the CSE7761 datasheet definition of bit 23 as an invalid-data flag for RMS registers. |
+| **Debug service address validation** | `read_register_service()` validated the register address against the 32-bit range (`> 0xFFFFFFFF`), which is always false for an `unsigned long`. The check is corrected to the 8-bit CSE7761 address space (`> 0xFF`). |
+| **Code quality** | All French-language comments and log messages translated to English; log levels standardised (`ESP_LOGI` for measurement values); register constant names updated to be self-documenting; `double` literals used consistently throughout where `double` accumulators are involved. |
 
-### [![Buy me a coffee](https://img.shields.io/badge/Buy%20me%20a%20coffee-PayPal-blue?style=for-the-badge&logo=paypal)](https://paypal.me/mazkagaz)
+
+## Credits
+mazkagaz for their enhanced version of the sonoff_powct_esphome component, which is was forked from.
