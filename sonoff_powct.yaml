@@ -1,6 +1,7 @@
 substitutions:
   ct_turns_b: "1"        # Number of times the conductor is wrapped through the CT (1-5)
   persist_energy: "false" # Set to true to save accumulated energy to flash (survives reboot or power outage)
+  current_gain_a: "1.048" # Gain correction multiplier for channel A current (and derived power), default 1.0 means no correction. Adjust if you find the readings are consistently off by a certain percentage.
 
 esphome:
   name: esphome-powct
@@ -87,6 +88,7 @@ sensor:
     update_interval: 500ms
     ct_turns_b: ${ct_turns_b}
     persist_energy: ${persist_energy}
+    current_gain_a: ${current_gain_a}
     debug_sensor_hex_id: read_register_debug_hex
     debug_sensor_bin_id: read_register_debug_bin
     voltage:

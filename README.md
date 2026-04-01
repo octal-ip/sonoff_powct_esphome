@@ -22,7 +22,7 @@ This custom ESPHome component fully utilises the Sonoff POW CT, providing advanc
         * `my_sonoff_powct_write_register`
 
 * **Easy Calibration**
-    * The ability to perform fine calibration of the POWCT at zero load to ensure **optimal accuracy**.
+    * The ability to perform fine calibration of the POWCT at zero load and to correct proportional (gain) errors in current and power by specifying a multiplier in the YAML configuration.
 
 * **Higher Current and Power Sensitivity**
     * Multiple conductor turns through the CT are supported. Useful for instalations where 100A current readings are excessive, and higher sensitivity at lower powers is desirable.

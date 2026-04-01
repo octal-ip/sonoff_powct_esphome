@@ -45,6 +45,7 @@ namespace esphome {
       void set_energy_exported_sensor(sensor::Sensor *energy_exported) { energy_exported_ = energy_exported; }
       void set_ct_turns_b(uint8_t turns) { ct_turns_b_ = turns; }
       void set_persist_energy(bool persist) { persist_energy_ = persist; }
+      void set_current_gain_a(float gain) { current_gain_a_ = gain; }
       bool is_calibration_enabled() const { return calibration_enabled_; }
       void setup() override;
       void dump_config() override;
@@ -74,6 +75,7 @@ namespace esphome {
       // calibration
       bool calibration_enabled_{false};
       bool persist_energy_{false};
+      float current_gain_a_{1.0f};
       bool ok_energy_{false};
       uint8_t ct_turns_b_{1};
       uint8_t calibration_count_{0};

@@ -487,7 +487,7 @@ namespace esphome {
       // Read current channel A (24-bit format, treat MSB-set as invalid)
       uint32_t raw_current_a = this->read_(CSE7761_REG_RMS_I_A, 3);
       this->data_.current_rms[0] = (raw_current_a >= 0x800000) ? 0 : raw_current_a;
-      this->active_current_A_ = (((float) this->data_.current_rms[0]) / this->coefficient_by_unit_(RMS_IAC)) + this->software_current_offset_A_;
+      this->active_current_A_ = (((float) this->data_.current_rms[0]) / this->coefficient_by_unit_(RMS_IAC)) * this->current_gain_a_ + this->software_current_offset_A_;
       if (this->current_sensor_1_ != nullptr) {
         this->current_sensor_1_->publish_state(this->active_current_A_);
         ESP_LOGI(TAG, "Current A: %.3f A", this->active_current_A_);
@@ -506,7 +506,7 @@ namespace esphome {
       uint32_t now = esphome::millis();
       int32_t raw_power_a = this->read_(CSE7761_REG_POWER_A, 4);
       this->data_.active_power[0] = raw_power_a;
-      this->active_power_A_ = (((float) this->data_.active_power[0]) / this->coefficient_by_unit_(POWER_PAC)) + this->software_power_offset_A_;
+      this->active_power_A_ = (((float) this->data_.active_power[0]) / this->coefficient_by_unit_(POWER_PAC)) * this->current_gain_a_ + this->software_power_offset_A_;
       if (this->power_sensor_1_ != nullptr) {
         this->power_sensor_1_->publish_state(this->active_power_A_);
         ESP_LOGI(TAG, "Active Power A: %.3f W", this->active_power_A_);
