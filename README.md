@@ -43,6 +43,15 @@ This custom ESPHome component fully utilises the Sonoff POW CT, providing advanc
 | **Calibration Guide** | Instructions for performing a "zero point" calibration. | **[documents/CALIBRATION.md](documents/CALIBRATION.md)** |
 ***
 
+## ⚠️ Disclaimer
+This project replaces the stock firmware on a Sonoff device with custom ESPHome firmware. By using this project you acknowledge and accept the following:
+*Warranty void: flashing third-party firmware will void the manufacturer's warranty on the device.
+*No guarantee of safety or correctness: this firmware is provided as-is, without warranty of any kind. Bugs may exist that cause incorrect readings or unexpected device behaviour.
+*Electrical safety: only qualified persons should install, open or handle mains-connected equipment. Always follow local electrical codes and regulations. If in doubt, consult a licensed electrician.
+*No affiliation: this project is not affiliated with, endorsed by, or supported by Itead (Sonoff), Espressif, or any other manufacturer or vendor.
+*Use at your own risk: the author(s) accept no liability for damage to property, data loss, personal injury, or any other harm arising from the use or misuse of this project.
+
+
 ## 🔧 Key Changes from Original (`mazkagaz/sonoff_powct_esphome`)
 The following key functional improvements were made to the `components/cse7761` driver after forking, addressing reliability, accuracy, and configurability:
 
