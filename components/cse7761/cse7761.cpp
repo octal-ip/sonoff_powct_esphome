@@ -5,6 +5,7 @@
 #include <sstream>
 #include <iomanip>
 #include <inttypes.h>
+#include <cmath>
 
 namespace esphome {
   namespace cse7761 {
@@ -173,8 +174,6 @@ namespace esphome {
           this->calibration_count_ = 0;
           this->sum_current_A_ = 0;
           this->sum_power_A_ = 0;
-          this->sum_current_B_ = 0;
-          this->sum_power_B_ = 0;
         }
       }
     }
@@ -190,11 +189,8 @@ namespace esphome {
       // Subtracting the mean drives the post-offset value toward zero.
       this->software_current_offset_A_ -= this->sum_current_A_ / calibration_count_F;
       this->software_power_offset_A_   -= this->sum_power_A_   / calibration_count_F;
-      this->software_current_offset_B_ -= this->sum_current_B_ / calibration_count_F;
-      this->software_power_offset_B_   -= this->sum_power_B_   / calibration_count_F;
-      ESP_LOGI(TAG, "Calibration done: Software offsets - Current A: %.3f A, Current B: %.3f A, Power A: %.3f W, Power B: %.3f W",
-              this->software_current_offset_A_, this->software_current_offset_B_,
-              this->software_power_offset_A_, this->software_power_offset_B_);
+      ESP_LOGI(TAG, "Calibration done: Software offsets - Current A: %.3f A, Power A: %.3f W",
+              this->software_current_offset_A_, this->software_power_offset_A_);
 
       // Persist the new offsets so they survive a reboot
       CalibrationDataStruct cal_data = {
@@ -209,8 +205,6 @@ namespace esphome {
       this->calibration_count_ = 0;
       this->sum_current_A_ = 0;
       this->sum_power_A_ = 0;
-      this->sum_current_B_ = 0;
-      this->sum_power_B_ = 0;
       this->calibration_enabled_ = false;
       ESP_LOGI(TAG, "Calibration complete: mode disabled.");
     }
@@ -454,7 +448,7 @@ namespace esphome {
 
     //***********************************************************************************************
     // get_data_ : get measurements from chip and convert them to SI units
-    // Reads voltage, current (channels A and B), and power (channels A and B) from CSE7761
+    // Reads voltage and channel A current/power from CSE7761; channel B only if sensors are configured.
     // Applies calibration offsets and calculates accumulated energy
     //***********************************************************************************************
     void CSE7761Component::get_data_() {
@@ -487,26 +481,26 @@ namespace esphome {
       // Read current channel A (24-bit format, treat MSB-set as invalid)
       uint32_t raw_current_a = this->read_(CSE7761_REG_RMS_I_A, 3);
       this->data_.current_rms[0] = (raw_current_a >= 0x800000) ? 0 : raw_current_a;
-      this->active_current_A_ = (((float) this->data_.current_rms[0]) / this->coefficient_by_unit_(RMS_IAC)) * this->current_gain_a_ + this->software_current_offset_A_;
+      this->active_current_A_ = (((float) this->data_.current_rms[0]) / this->coefficient_by_unit_(RMS_IAC)) / (float)this->ct_turns_ * this->current_gain_a_ + this->software_current_offset_A_;
       if (this->current_sensor_1_ != nullptr) {
         this->current_sensor_1_->publish_state(this->active_current_A_);
         ESP_LOGI(TAG, "Current A: %.3f A", this->active_current_A_);
       }
 
       // Read current channel B (24-bit format, treat MSB-set as invalid)
-      uint32_t raw_current_b = this->read_(CSE7761_REG_RMS_I_B, 3);
-      this->data_.current_rms[1] = (raw_current_b >= 0x800000) ? 0 : raw_current_b;
-      this->active_current_B_ = ((((float) this->data_.current_rms[1]) / this->coefficient_by_unit_(RMS_IBC)) + this->software_current_offset_B_) / (float)this->ct_turns_b_;
       if (this->current_sensor_2_ != nullptr) {
-        this->current_sensor_2_->publish_state(this->active_current_B_);
-        ESP_LOGI(TAG, "Current B: %.3f A", this->active_current_B_);
+        uint32_t raw_current_b = this->read_(CSE7761_REG_RMS_I_B, 3);
+        this->data_.current_rms[1] = (raw_current_b >= 0x800000) ? 0 : raw_current_b;
+        float active_current_B = (((float) this->data_.current_rms[1]) / this->coefficient_by_unit_(RMS_IBC)) + this->software_current_offset_B_;
+        this->current_sensor_2_->publish_state(active_current_B);
+        ESP_LOGI(TAG, "Current B: %.3f A", active_current_B);
       }
 
       // Read power channel A (32-bit signed in two's complement format)
       uint32_t now = esphome::millis();
       int32_t raw_power_a = this->read_(CSE7761_REG_POWER_A, 4);
       this->data_.active_power[0] = raw_power_a;
-      this->active_power_A_ = (((float) this->data_.active_power[0]) / this->coefficient_by_unit_(POWER_PAC)) * this->current_gain_a_ + this->software_power_offset_A_;
+      this->active_power_A_ = (((float) this->data_.active_power[0]) / this->coefficient_by_unit_(POWER_PAC)) / (float)this->ct_turns_ * this->current_gain_a_ + this->software_power_offset_A_;
       if (this->power_sensor_1_ != nullptr) {
         this->power_sensor_1_->publish_state(this->active_power_A_);
         ESP_LOGI(TAG, "Active Power A: %.3f W", this->active_power_A_);
@@ -549,13 +543,35 @@ namespace esphome {
                  this->accumulated_energy_exported_ / 1000.0);
       }
 
+      // Read power factor and reactive power (channel A)
+      if (this->power_factor_ != nullptr || this->reactive_power_ != nullptr) {
+        // Power factor register: 24-bit signed, 0x7FFFFF = 1.0
+        uint32_t raw_pf = this->read_(CSE7761_REG_POWER_FACTOR, 3);
+        int32_t signed_pf = (raw_pf >= 0x800000) ? (int32_t)(raw_pf - 0x1000000) : (int32_t)raw_pf;
+        float pf = (float)signed_pf / (float)0x7FFFFF;
+        if (this->power_factor_ != nullptr) {
+          this->power_factor_->publish_state(pf);
+          ESP_LOGI(TAG, "Power Factor: %.3f", pf);
+        }
+        if (this->reactive_power_ != nullptr) {
+          // Compute apparent power from calibrated V and I rather than the hardware
+          // register (whose POWER_SC coefficient is missing the CT K_1=4.7 factor).
+          float apparent_power = voltage * this->active_current_A_;
+          float p = this->active_power_A_;
+          float q_sq = apparent_power * apparent_power - p * p;
+          float reactive_power = (q_sq > 0.0f) ? sqrtf(q_sq) : 0.0f;
+          this->reactive_power_->publish_state(reactive_power);
+          ESP_LOGI(TAG, "Reactive Power: %.3f VAR (Apparent: %.3f VA)", reactive_power, apparent_power);
+        }
+      }
+
       // Read power channel B (32-bit signed in two's complement format)
-      int32_t raw_power_b = this->read_(CSE7761_REG_POWER_B, 4);
-      this->data_.active_power[1] = raw_power_b;
-      this->active_power_B_ = ((((float) this->data_.active_power[1]) / this->coefficient_by_unit_(POWER_PBC)) + this->software_power_offset_B_) / (float)this->ct_turns_b_;
       if (this->power_sensor_2_ != nullptr) {
-        this->power_sensor_2_->publish_state(this->active_power_B_);
-        ESP_LOGI(TAG, "Power B: %.3f W", this->active_power_B_);
+        int32_t raw_power_b = this->read_(CSE7761_REG_POWER_B, 4);
+        this->data_.active_power[1] = raw_power_b;
+        float active_power_B = (((float) this->data_.active_power[1]) / this->coefficient_by_unit_(POWER_PBC)) + this->software_power_offset_B_;
+        this->power_sensor_2_->publish_state(active_power_B);
+        ESP_LOGI(TAG, "Power B: %.3f W", active_power_B);
       }
 
       // Handle calibration if enabled
@@ -564,15 +580,11 @@ namespace esphome {
           // Reset calibration accumulators at the start of each cycle
           this->sum_current_A_ = 0;
           this->sum_power_A_   = 0;
-          this->sum_current_B_ = 0;
-          this->sum_power_B_ = 0;
         }
 
-        // Accumulate both channels (both assumed idle / no-load during calibration)
+        // Accumulate channel A (assumed idle / no-load during calibration)
         this->sum_current_A_ += this->active_current_A_;
         this->sum_power_A_   += this->active_power_A_;
-        this->sum_current_B_ += this->active_current_B_;
-        this->sum_power_B_   += this->active_power_B_;
         this->calibration_count_++;
 
         // Perform calibration when enough samples collected

@@ -86,7 +86,7 @@ sensor:
   - platform: cse7761
     id: cse7761_comp
     update_interval: 500ms
-    ct_turns_b: ${ct_turns_b}
+    ct_turns: ${ct_turns}
     persist_energy: ${persist_energy}
     current_gain_a: ${current_gain_a}
     debug_sensor_hex_id: read_register_debug_hex
@@ -133,18 +133,23 @@ sensor:
       state_class: total_increasing
       filters:
         - throttle: 30s
+    power_factor:
+      name: Power Factor
+      id: power_factor
+      icon: mdi:angle-acute
+      filters:
+        - throttle_average: 30s
+    reactive_power:
+      name: Reactive Power
+      id: q_sensor
+      icon: mdi:flash-outline
+      filters:
+        - throttle_average: 30s
 
   - platform: internal_temperature
     name: ESP32 Internal Temp
     id: esp32_temp
     update_interval: 60s
-
-  - platform: template
-    name: Power Factor
-    device_class: power_factor
-    id: power_factor
-    icon: mdi:angle-acute
-    lambda: return id(w_sensor_1).state / id(v_sensor).state / id(a_sensor_1).state;
 
 binary_sensor:
   - platform: gpio

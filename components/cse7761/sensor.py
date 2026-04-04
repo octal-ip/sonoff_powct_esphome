@@ -4,8 +4,12 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_ID,
     CONF_VOLTAGE,
+    CONF_POWER_FACTOR,
+    CONF_REACTIVE_POWER,
     DEVICE_CLASS_CURRENT,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_ENERGY,
     STATE_CLASS_MEASUREMENT,
@@ -14,6 +18,7 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_WATT,
     UNIT_KILOWATT_HOURS,
+    UNIT_VOLT_AMPS_REACTIVE,
 )
 
 CODEOWNERS = ["@berfenger", "@mazkagaz"]
@@ -31,7 +36,7 @@ CONF_ENERGY_RECEIVED = "energy_received"
 CONF_ENERGY_EXPORTED = "energy_exported"
 CONF_DEBUG_SENSOR_HEX_ID = "debug_sensor_hex_id"
 CONF_DEBUG_SENSOR_BIN_ID = "debug_sensor_bin_id"
-CONF_CT_TURNS_B = "ct_turns_b"
+CONF_CT_TURNS = "ct_turns"
 CONF_PERSIST_ENERGY = "persist_energy"
 CONF_CURRENT_GAIN_A = "current_gain_a"
 
@@ -81,7 +86,18 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
-            cv.Optional(CONF_CT_TURNS_B, default=1): cv.int_range(min=1, max=5),
+            cv.Optional(CONF_POWER_FACTOR): sensor.sensor_schema(
+                accuracy_decimals=3,
+                device_class=DEVICE_CLASS_POWER_FACTOR,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_REACTIVE_POWER): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT_AMPS_REACTIVE,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_REACTIVE_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_CT_TURNS, default=1): cv.int_range(min=1, max=5),
             cv.Optional(CONF_PERSIST_ENERGY, default=False): cv.boolean,
             cv.Optional(CONF_CURRENT_GAIN_A, default=1.0): cv.positive_float,
             cv.Optional(CONF_DEBUG_SENSOR_HEX_ID): cv.use_id(text_sensor.TextSensor),
@@ -111,13 +127,15 @@ async def to_code(config):
         CONF_ACTIVE_POWER_2,
         CONF_ENERGY_RECEIVED,
         CONF_ENERGY_EXPORTED,
+        CONF_POWER_FACTOR,
+        CONF_REACTIVE_POWER,
     ]:
         if key not in config:
             continue
         conf = config[key]
         sens = await sensor.new_sensor(conf)
         cg.add(getattr(var, f"set_{key}_sensor")(sens))
-    cg.add(var.set_ct_turns_b(config[CONF_CT_TURNS_B]))
+    cg.add(var.set_ct_turns(config[CONF_CT_TURNS]))
     cg.add(var.set_persist_energy(config[CONF_PERSIST_ENERGY]))
     cg.add(var.set_current_gain_a(config[CONF_CURRENT_GAIN_A]))
     if debug_sensor_hex_config := config.get(CONF_DEBUG_SENSOR_HEX_ID):

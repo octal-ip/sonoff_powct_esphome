@@ -43,7 +43,9 @@ namespace esphome {
       void set_current_2_sensor(sensor::Sensor *current_sensor_2) { current_sensor_2_ = current_sensor_2; }
       void set_energy_received_sensor(sensor::Sensor *energy_received) { energy_received_ = energy_received; }
       void set_energy_exported_sensor(sensor::Sensor *energy_exported) { energy_exported_ = energy_exported; }
-      void set_ct_turns_b(uint8_t turns) { ct_turns_b_ = turns; }
+      void set_power_factor_sensor(sensor::Sensor *power_factor) { power_factor_ = power_factor; }
+      void set_reactive_power_sensor(sensor::Sensor *reactive_power) { reactive_power_ = reactive_power; }
+      void set_ct_turns(uint8_t turns) { ct_turns_ = turns; }
       void set_persist_energy(bool persist) { persist_energy_ = persist; }
       void set_current_gain_a(float gain) { current_gain_a_ = gain; }
       bool is_calibration_enabled() const { return calibration_enabled_; }
@@ -69,6 +71,8 @@ namespace esphome {
       text_sensor::TextSensor *debug_sensor_bin_{nullptr};
       sensor::Sensor *energy_received_{nullptr};
       sensor::Sensor *energy_exported_{nullptr};
+      sensor::Sensor *power_factor_{nullptr};
+      sensor::Sensor *reactive_power_{nullptr};
       CSE7761DataStruct data_;
       esphome::ESPPreferenceObject pref_;
       esphome::ESPPreferenceObject calibration_pref_;
@@ -77,17 +81,13 @@ namespace esphome {
       bool persist_energy_{false};
       float current_gain_a_{1.0f};
       bool ok_energy_{false};
-      uint8_t ct_turns_b_{1};
+      uint8_t ct_turns_{1};
       uint8_t calibration_count_{0};
       double sum_current_A_{0};
       double sum_power_A_{0};
-      double sum_current_B_{0};
-      double sum_power_B_{0};
       double active_current_A_{0};
-      double active_current_B_{0};
       double last_active_power_A_{0};
       double active_power_A_{0};
-      double active_power_B_{0};
       double software_current_offset_A_{0};
       double software_current_offset_B_{0};
       double software_power_offset_A_{0};
